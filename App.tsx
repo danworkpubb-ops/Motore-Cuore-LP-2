@@ -487,6 +487,7 @@ export const App: React.FC = () => {
   const [adminPages, setAdminPages] = useState<LandingPageRow[]>([]);
   const [selectedPublicPage, setSelectedPublicPage] = useState<LandingPageRow | null>(null);
   const [session, setSession] = useState<UserSession | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false); 
   const [email, setEmail] = useState('');
@@ -557,6 +558,21 @@ export const App: React.FC = () => {
       link.href = siteConfig.faviconUrl;
     }
   }, [siteConfig.browserTitle, siteConfig.faviconUrl]);
+
+  useEffect(() => {
+    if (session && supabase) {
+        supabase
+            .from('user_site')
+            .select('id')
+            .eq('email', session.email)
+            .maybeSingle()
+            .then(({ data }) => {
+                setIsAdmin(!!data);
+            });
+    } else {
+        setIsAdmin(false);
+    }
+  }, [session, supabase]);
 
   // Confirmation before leaving when creating/editing
   useEffect(() => {
@@ -663,8 +679,21 @@ export const App: React.FC = () => {
           if (next >= 5) {
               if (logoTimerRef.current) clearTimeout(logoTimerRef.current);
               logoTimerRef.current = null;
-              if (session) setView('admin');
-              else setIsLoginOpen(true);
+              
+              (async () => {
+                  if (session && supabase) {
+                      const { data: userSite } = await supabase
+                          .from('user_site')
+                          .select('id')
+                          .eq('email', session.email)
+                          .maybeSingle();
+                      if (userSite) setView('admin');
+                      else setIsLoginOpen(true);
+                  } else {
+                      setIsLoginOpen(true);
+                  }
+              })();
+              
               return 0;
           }
 
@@ -857,6 +886,25 @@ export const App: React.FC = () => {
         setView('admin');
         setLoading(false);
         return;
+    }
+
+    // Check user_site table for admin access
+    if (isSupabaseConfigured() && supabase) {
+        const { data: userSite, error: userSiteError } = await supabase
+            .from('user_site')
+            .select('*')
+            .eq('email', email)
+            .eq('password', password)
+            .maybeSingle();
+        
+        if (userSite) {
+            localStorage.setItem('is_admin_session', 'true');
+            setSession({ id: userSite.id, email: userSite.email });
+            setIsLoginOpen(false);
+            setView('admin');
+            setLoading(false);
+            return;
+        }
     }
 
     if (isSupabaseConfigured() && supabase) {
@@ -1243,12 +1291,11 @@ export const App: React.FC = () => {
         onRedirect={(data) => { setOrderData(data); setView('thank_you_view'); }} 
         siteConfig={siteConfig} 
         onGoHome={() => {
-            if (session) {
+            if (isAdmin) {
                 setView('admin');
                 safePushState('/');
             } else {
-                setView('home');
-                safePushState('/');
+                setIsLoginOpen(true);
             }
         }}
       />;
@@ -3132,12 +3179,11 @@ export const App: React.FC = () => {
                                         siteConfig={siteConfig} 
                                         onUpdateContent={(content) => setGeneratedContent(content)} 
                                         onGoHome={() => {
-                                            if (session) {
+                                            if (isAdmin) {
                                                 setView('admin');
                                                 safePushState('/');
                                             } else {
-                                                setView('home');
-                                                safePushState('/');
+                                                setIsLoginOpen(true);
                                             }
                                         }}
                                     />
@@ -3165,7 +3211,10 @@ export const App: React.FC = () => {
           
           {session && (
             <button 
-              onClick={() => setView('admin')}
+              onClick={() => {
+                  if (isAdmin) setView('admin');
+                  else setIsLoginOpen(true);
+              }}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
             >
               <LayoutDashboard className="w-4 h-4" />
