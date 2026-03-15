@@ -2,11 +2,11 @@
 
 export const generateAIContent = async (userPrompt: string) => {
   // Queste variabili vengono iniettate automaticamente durante il deploy dalla piattaforma
-  const platformUrl = (import.meta as any).env.VITE_PROXY_URL;
+  const platformUrl = (import.meta as any).env.VITE_PROXY_URL || 'https://genera-lp.vercel.app';
   const ownerId = (import.meta as any).env.VITE_OWNER_ID;
 
   if (!platformUrl || !ownerId) {
-    throw new Error("Configurazione piattaforma mancante.");
+    throw new Error("Configurazione piattaforma mancante (URL o Owner ID).");
   }
 
   const systemPrompt = `

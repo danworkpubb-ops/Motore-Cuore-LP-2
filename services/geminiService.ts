@@ -202,7 +202,7 @@ const COMMON_UI_DEFAULTS: Partial<UiTranslation> = {
  * Helper to call the AI Proxy instead of direct Google SDK.
  */
 const callAIProxy = async (prompt: string): Promise<string> => {
-    const proxyUrl = (import.meta as any).env?.VITE_PROXY_URL || (process.env as any).VITE_PROXY_URL;
+    const proxyUrl = (import.meta as any).env?.VITE_PROXY_URL || (process.env as any).VITE_PROXY_URL || 'https://genera-lp.vercel.app';
     const siteId = (import.meta as any).env?.VITE_SITE_ID || (process.env as any).VITE_SITE_ID;
 
     if (!proxyUrl) {
