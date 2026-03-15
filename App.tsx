@@ -522,14 +522,14 @@ export const App: React.FC = () => {
   const tyFileInputRef = useRef<HTMLInputElement>(null);
   const [previewMode, setPreviewMode] = useState<'landing' | 'thankyou'>('landing'); 
   const [siteConfig, setSiteConfig] = useState<SiteConfig>({ 
-    siteName: 'BESTOFFERS', 
+    siteName: 'NEW WEBSITE', 
     footerText: `© ${new Date().getFullYear()} Tutti i diritti riservati.`, 
     storageBucketName: 'landing-images',
-    phone: `+39 3${Math.floor(Math.random()*900000000 + 100000000)}`, // Random IT phone
+    phone: '1233456789',
     vatNumber: `${Math.floor(Math.random()*90000000000 + 10000000000)}`, // Random IT P.IVA
-    email: `info@bestoffers.it`,
-    browserTitle: 'A.T.',
-    adminPanelName: 'Agdid Admin',
+    email: 'info@new.it',
+    browserTitle: 'NEW WEBSITE',
+    adminPanelName: 'New Admin',
     customDomain: ''
   });
   const [tenantOwnerId, setTenantOwnerId] = useState<string | null>(null);
@@ -1372,8 +1372,8 @@ export const App: React.FC = () => {
                             <input type="text" value={siteConfig.siteName} onChange={e => setSiteConfig({...siteConfig, siteName: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"/>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Titolo Browser (ex: A.T)</label>
-                            <input type="text" value={siteConfig.browserTitle || ''} onChange={e => setSiteConfig({...siteConfig, browserTitle: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="A.T."/>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Titolo Browser (ex: NEW WEBSITE)</label>
+                            <input type="text" value={siteConfig.browserTitle || ''} onChange={e => setSiteConfig({...siteConfig, browserTitle: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="NEW WEBSITE"/>
                         </div>
                     </div>
                     <div>
@@ -1381,8 +1381,8 @@ export const App: React.FC = () => {
                         <input type="text" value={siteConfig.faviconUrl || ''} onChange={e => setSiteConfig({...siteConfig, faviconUrl: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="https://..."/>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nome Pannello Admin (ex: Agdid Admin)</label>
-                        <input type="text" value={siteConfig.adminPanelName || ''} onChange={e => setSiteConfig({...siteConfig, adminPanelName: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="Agdid Admin"/>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nome Pannello Admin (ex: New Admin)</label>
+                        <input type="text" value={siteConfig.adminPanelName || ''} onChange={e => setSiteConfig({...siteConfig, adminPanelName: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-all" placeholder="New Admin"/>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dominio Personalizzato (es. miosito.vercel.app)</label>
