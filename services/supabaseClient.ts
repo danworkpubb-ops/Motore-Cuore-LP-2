@@ -13,8 +13,14 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export { supabase };
 
+export const SITE_ID = (import.meta as any).env?.VITE_SITE_ID || "";
+
 export const isSupabaseConfigured = (): boolean => {
   return !!supabase;
+};
+
+export const isSiteIdConfigured = (): boolean => {
+  return !!SITE_ID;
 };
 
 /**

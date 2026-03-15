@@ -57,6 +57,9 @@ const TEMPLATES: { id: TemplateId; name: string; desc: string; color: string }[]
     { id: 'gadget-cod', name: 'Gadget COD', desc: 'Stile "Offerte-On". Perfect per prodotti fisici e pagamento alla consegna.', color: 'bg-blue-600 text-white border-blue-800' },
 ];
 
+const SITE_ID = (import.meta as any).env.VITE_SITE_ID;
+const PROXY_URL = (import.meta as any).env.VITE_PROXY_URL;
+
 const BUTTON_GRADIENTS = [
     { label: 'Orange Sunset', class: 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-orange-400' },
     { label: 'Emerald Green', class: 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white border-emerald-400' },
@@ -235,7 +238,7 @@ const DuplicateModal: React.FC<{
         try {
             let fullPage = page;
             if (!page.content.headline) {
-                 const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).single();
+                 const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).eq('site_id', SITE_ID).single();
                  if (data) fullPage = data as LandingPageRow;
             }
 
@@ -277,7 +280,7 @@ const DuplicateModal: React.FC<{
                 user_id: session?.id
             };
 
-            const { data, error } = await supabase.from('landing_pages').insert(newPagePayload).select().single();
+            const { data, error } = await supabase.from('landing_pages').insert({ ...newPagePayload, site_id: SITE_ID }).select().single();
             if (error) throw error;
 
             onSuccess(data);
@@ -465,6 +468,19 @@ const EditorSection: React.FC<{ title: string; num: string | number; icon: React
 export const App: React.FC = () => {
   // Stati principali
   const [isInitializing, setIsInitializing] = useState(true);
+
+  if (!SITE_ID) {
+    return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md text-center">
+                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <h1 className="text-2xl font-black text-slate-900 mb-2">Configurazione SaaS Mancante</h1>
+                <p className="text-slate-600">VITE_SITE_ID non è configurato. Contatta l'amministratore per abilitare l'isolamento dei dati.</p>
+            </div>
+        </div>
+    );
+  }
+
   const [view, setView] = useState<'home' | 'product_view' | 'thank_you_view' | 'admin' | 'preview'>('home');
   const [adminSection, setAdminSection] = useState<'pages' | 'settings'>('pages');
   const [publicPages, setPublicPages] = useState<LandingPageRow[]>([]);
@@ -671,7 +687,8 @@ export const App: React.FC = () => {
     let query = supabase
         .from('landing_pages')
         .select('id, product_name, slug, niche, is_published, content->>heroImageBase64, content->>subheadline, content->>stockConfig')
-        .eq('is_published', true);
+        .eq('is_published', true)
+        .eq('site_id', SITE_ID);
         
     if (ownerId) {
         query = query.eq('user_id', ownerId);
@@ -702,6 +719,7 @@ export const App: React.FC = () => {
             .from('landing_pages')
             .select('id, product_name, slug, thank_you_slug, niche, is_published, created_at, content->>heroImageBase64, content->>subheadline, content->>stockConfig')
             .eq('user_id', session.id)
+            .eq('site_id', SITE_ID)
             .order('created_at', { ascending: false });
         
         if (!error && data) {
@@ -738,6 +756,7 @@ export const App: React.FC = () => {
                 const { data: domainData } = await supabase
                     .from('site_settings')
                     .select('user_id')
+                    .eq('site_id', SITE_ID)
                     .contains('config', { customDomain: currentHost })
                     .maybeSingle();
                 
@@ -774,7 +793,7 @@ export const App: React.FC = () => {
                 const { data: settingsData } = await supabase
                     .from('site_settings')
                     .select('config')
-                    .eq('user_id', settingsUserId)
+                    .eq('site_id', SITE_ID)
                     .maybeSingle();
                 if (settingsData?.config) setSiteConfig(prev => ({ ...prev, ...settingsData.config }));
             }
@@ -786,7 +805,7 @@ export const App: React.FC = () => {
             const idParam = urlParams.get('p');
 
             if (slugParam || idParam) {
-                let query = supabase.from('landing_pages').select('*');
+                let query = supabase.from('landing_pages').select('*').eq('site_id', SITE_ID);
                 
                 // Isolation filter
                 const activeOwnerId = resolvedTenantId || currentSession?.user.id || ownerId;
@@ -869,7 +888,7 @@ export const App: React.FC = () => {
     let fullPage = page;
     if (supabase && !page.content.headline) {
         setLoading(true);
-        const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).single();
+        const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).eq('site_id', SITE_ID).single();
         if (data) fullPage = data as LandingPageRow;
         setLoading(false);
     }
@@ -931,11 +950,12 @@ export const App: React.FC = () => {
             product_name: targetName, slug: newSlug, thank_you_slug: newTySlug, niche: product.niche,
             content: { ...finalLandingContent, templateId: selectedTemplate },
             thank_you_content: finalTyContent, is_published: asNew ? false : isPublished,
-            user_id: session.id
+            user_id: session.id,
+            site_id: SITE_ID
         };
 
         const { error } = (editingPageId && !asNew) ? 
-            await supabase.from('landing_pages').update(dbPayload).eq('id', editingPageId) : 
+            await supabase.from('landing_pages').update(dbPayload).eq('id', editingPageId).eq('site_id', SITE_ID) : 
             await supabase.from('landing_pages').insert(dbPayload);
         
         if (!error) { 
@@ -1077,7 +1097,7 @@ export const App: React.FC = () => {
     if (supabase) {
         if (!page.content.headline) {
              setLoading(true);
-             const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).single();
+             const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).eq('site_id', SITE_ID).single();
              if (data) {
                  setSelectedPublicPage(data as LandingPageRow);
                  setView('product_view');
@@ -1098,7 +1118,7 @@ export const App: React.FC = () => {
     let fullPage = page;
     if (supabase && !page.content.headline) {
         setLoading(true);
-        const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).single();
+        const { data } = await supabase.from('landing_pages').select('*').eq('id', page.id).eq('site_id', SITE_ID).single();
         if (data) fullPage = data as LandingPageRow;
         setLoading(false);
     }
@@ -1121,7 +1141,7 @@ export const App: React.FC = () => {
   const handleDelete = async (id: string) => {
       if (!confirm("Sei sicuro di voler eliminare questa pagina?")) return;
       if (!supabase) return;
-      const { error } = await supabase.from('landing_pages').delete().eq('id', id);
+      const { error } = await supabase.from('landing_pages').delete().eq('id', id).eq('site_id', SITE_ID);
       if (!error) fetchAllAdminPages();
   };
 
@@ -1345,7 +1365,7 @@ export const App: React.FC = () => {
                             const { data: existing } = await supabase
                                 .from('site_settings')
                                 .select('id')
-                                .eq('user_id', session.id)
+                                .eq('site_id', SITE_ID)
                                 .maybeSingle();
                                 
                             let error;
@@ -1353,13 +1373,14 @@ export const App: React.FC = () => {
                                 const { error: updateError } = await supabase
                                     .from('site_settings')
                                     .update({ config: siteConfig })
-                                    .eq('id', existing.id);
+                                    .eq('id', existing.id)
+                                    .eq('site_id', SITE_ID);
                                 error = updateError;
                             } else {
                                 // Try inserting with a UUID
                                 const { error: insertError } = await supabase
                                     .from('site_settings')
-                                    .insert({ id: crypto.randomUUID(), user_id: session.id, config: siteConfig });
+                                    .insert({ id: crypto.randomUUID(), user_id: session.id, site_id: SITE_ID, config: siteConfig });
                                 
                                 if (insertError && insertError.message.includes('invalid input syntax for type')) {
                                     // It might be an integer column, let's get the max ID
@@ -1373,7 +1394,7 @@ export const App: React.FC = () => {
                                     const nextId = maxIdData ? Number(maxIdData.id) + 1 : 1;
                                     const { error: retryError } = await supabase
                                         .from('site_settings')
-                                        .insert({ id: nextId, user_id: session.id, config: siteConfig });
+                                        .insert({ id: nextId, user_id: session.id, site_id: SITE_ID, config: siteConfig });
                                     error = retryError;
                                 } else {
                                     error = insertError;
