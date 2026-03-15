@@ -748,14 +748,21 @@ export const App: React.FC = () => {
             }
 
             // 1. Auth check
+            const isAdminSession = localStorage.getItem('is_admin_session') === 'true';
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             if (currentSession) {
                 setSession({ id: currentSession.user.id, email: currentSession.user.email || '' });
+            } else if (isAdminSession) {
+                setSession({ id: 'admin-bypass', email: (import.meta as any).env.VITE_ADMIN_EMAIL || 'admin@local' });
             }
 
             const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-                if (session) setSession({ id: session.user.id, email: session.user.email || '' });
-                else setSession(null);
+                if (session) {
+                    localStorage.removeItem('is_admin_session');
+                    setSession({ id: session.user.id, email: session.user.email || '' });
+                } else if (localStorage.getItem('is_admin_session') !== 'true') {
+                    setSession(null);
+                }
             });
 
             // 2. Settings check
@@ -819,16 +826,36 @@ export const App: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setAuthError('');
+    
+    // Login Bypass
+    const adminEmail = (import.meta as any).env.VITE_ADMIN_EMAIL;
+    const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD;
+    
+    if (adminEmail && adminPassword && email === adminEmail && password === adminPassword) {
+        localStorage.setItem('is_admin_session', 'true');
+        setSession({ id: 'admin-bypass', email: adminEmail });
+        setIsLoginOpen(false);
+        setView('admin');
+        setLoading(false);
+        return;
+    }
+
     if (isSupabaseConfigured() && supabase) {
       const { data, error } = isRegistering ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
       if (error) setAuthError(error.message);
-      else if (data.session) { setSession({ id: data.session.user.id, email: data.session.user.email || '' }); setIsLoginOpen(false); setView('admin'); }
+      else if (data.session) { 
+          localStorage.removeItem('is_admin_session');
+          setSession({ id: data.session.user.id, email: data.session.user.email || '' }); 
+          setIsLoginOpen(false); 
+          setView('admin'); 
+      }
     }
     setLoading(false);
   };
 
   const handleLogout = async () => { 
     if (supabase) await supabase.auth.signOut(); 
+    localStorage.removeItem('is_admin_session');
     setSession(null); 
     setView('home'); 
     safePushState('/');
