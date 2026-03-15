@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured, base64ToBlob, uploadImage, compressImage } from './services/supabaseClient';
 import { generateLandingPage, generateReviews, generateActionImages, translateLandingPage, rewriteLandingPage, getLanguageConfig, TIKTOK_SLIDER_HTML } from './services/geminiService';
+import { generateAIContent } from './src/services/aiService';
 import LandingPage, { ThankYouPage } from './components/LandingPage';
 import { ProductDetails, GeneratedContent, PageTone, UserSession, LandingPageRow, TemplateId, FormFieldConfig, TypographyConfig, UiTranslation, SiteConfig, Testimonial, OnlineUser, AIImageStyle, AnnouncementItem } from './types';
 import { Loader2, Sparkles, Star, ChevronLeft, ChevronRight, Save, ShoppingBag, ArrowRight, Trash2, Pencil, Smartphone, Tablet, Monitor, Plus, Images, X, RefreshCcw, ArrowLeft, Settings, Link as LinkIcon, Type, Truck, Flame, Zap, Globe, Banknote, Palette, Users, Copy, Target, Code, Mail, Lock, Package, ShieldCheck, FileText as FileTextIcon, Gift, HardDrive, Terminal, CopyCheck, AlertCircle, Database, Shield, Paintbrush, ChevronDown, Eye, MessageSquare, Quote, Info, CheckCircle, User, Activity, Lightbulb, Languages, CopyPlus, Rocket, ZapIcon, Wand2, MonitorOff, Layout, ListOrdered, Hash, Type as TypeIcon, Bell, Clock, LayoutDashboard, ShoppingCart, Video, Play, MonitorPlay, Download } from 'lucide-react';
@@ -514,6 +515,8 @@ export const App: React.FC = () => {
   const [editingMode, setEditingMode] = useState<'landing' | 'thankyou'>('landing');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAIImage, setIsGeneratingAIImage] = useState(false);
+  const [isGeneratingAISection, setIsGeneratingAISection] = useState(false);
+  const [aiSectionPrompt, setAiSectionPrompt] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
   const [duplicateModalConfig, setDuplicateModalConfig] = useState<{ isOpen: boolean, page: LandingPageRow | null }>({ isOpen: false, page: null });
@@ -1107,6 +1110,26 @@ export const App: React.FC = () => {
         ...prev,
         images: (prev.images || []).filter((_, i) => i !== index)
     }));
+  };
+
+  const handleGenerateAISection = async () => {
+    if (!aiSectionPrompt.trim()) {
+      alert("Inserisci un prompt per generare la sezione.");
+      return;
+    }
+    setIsGeneratingAISection(true);
+    try {
+      const html = await generateAIContent(aiSectionPrompt);
+      if (generatedContent) {
+        updateContent({ extraLandingHtml: (generatedContent.extraLandingHtml || '') + '\n' + html });
+        setAiSectionPrompt('');
+      }
+    } catch (error: any) {
+      console.error("AI Section Generation Error:", error);
+      alert("Errore durante la generazione della sezione: " + error.message);
+    } finally {
+      setIsGeneratingAISection(false);
+    }
   };
 
   const handleAddGalleryUrlToEditor = () => {
@@ -2258,6 +2281,26 @@ export const App: React.FC = () => {
                                                     </div>
                                                 </div>
                                             )}
+
+                                            <div className="pt-4 border-t border-slate-100 space-y-3">
+                                                <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> Generatore Sezioni AI</label>
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        type="text"
+                                                        value={aiSectionPrompt}
+                                                        onChange={e => setAiSectionPrompt(e.target.value)}
+                                                        placeholder="Es: Una sezione con i vantaggi del prodotto..."
+                                                        className="flex-1 border border-slate-200 rounded-lg p-2 text-[10px] outline-none focus:ring-1 focus:ring-blue-500"
+                                                    />
+                                                    <button 
+                                                        onClick={handleGenerateAISection}
+                                                        disabled={isGeneratingAISection}
+                                                        className="bg-blue-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-1.5 hover:bg-blue-700 transition-all disabled:opacity-50"
+                                                    >
+                                                        {isGeneratingAISection ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Wand2 className="w-3 h-3" /> Genera</>}
+                                                    </button>
+                                                </div>
+                                            </div>
 
                                             <div className="pt-4 border-t border-slate-100">
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2"><Code className="w-3 h-3" /> Editing Avanzato (HTML)</label>
