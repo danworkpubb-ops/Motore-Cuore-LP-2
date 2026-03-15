@@ -1261,14 +1261,20 @@ export const App: React.FC = () => {
                 <div className="mb-8 space-y-4">
                     <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
                         <h3 className="text-sm font-black text-blue-900 flex items-center gap-2 mb-2">
-                            <Rocket className="w-4 h-4" /> CONFIGURAZIONE AI (GEMINI)
+                            <Rocket className="w-4 h-4" /> CONFIGURAZIONE AI (SAAS PROXY)
                         </h3>
                         <p className="text-xs text-blue-700 leading-relaxed mb-3">
-                            Per la generazione AI su Vercel, aggiungi questa variabile:
+                            Per la generazione AI su Vercel, aggiungi queste variabili:
                         </p>
-                        <div className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-between group">
-                            <code className="text-[11px] font-black text-slate-900">VITE_GEMINI_API_KEY</code>
-                            <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Copia</span>
+                        <div className="space-y-2">
+                            <div className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-between group">
+                                <code className="text-[11px] font-black text-slate-900">VITE_PROXY_URL</code>
+                                <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Copia</span>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-between group">
+                                <code className="text-[11px] font-black text-slate-900">VITE_SITE_ID</code>
+                                <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Copia</span>
+                            </div>
                         </div>
                     </div>
 

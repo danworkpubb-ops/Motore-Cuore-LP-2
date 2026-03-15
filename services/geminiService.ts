@@ -1,6 +1,15 @@
 
-import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ProductDetails, GeneratedContent, FormFieldConfig, Testimonial, UiTranslation, PageTone, AIImageStyle } from "../types";
+
+// Local Type enum to avoid dependency on @google/genai
+enum Type {
+    OBJECT = "OBJECT",
+    STRING = "STRING",
+    ARRAY = "ARRAY",
+    NUMBER = "NUMBER",
+    BOOLEAN = "BOOLEAN",
+    INTEGER = "INTEGER"
+}
 
 const DISCLAIMER_BASE = "Il nostro sito web agisce esclusivamente come affiliato e si concentra sulla promozione dei prodotti tramite campagne pubblicitarie. Non ci assumiamo alcuna responsabilità per la spedizione, la qualità o qualsiasi altra questione riguardante i prodotti venduti tramite link di affiliazione. Ti preghiamo di notare che le immagini utilizzate a scopo illustrativo potrebbero non corrispondere alla reale immagine del prodotto acquistato. Ti invitiamo a contattare il servizio assistenza clienti dopo aver inserito i dati nel modulo per chiedere qualsiasi domanda o informazione sul prodotto prima di confermare l’ordine. Ti informiamo inoltre che i prodotti in omaggio proposti sul sito possono essere soggetti a disponibilità limitata, senza alcuna garanzia di disponibilità da parte del venditore che spedisce il prodotto. Ricorda che, qualora sorgessero problemi relativi alle spedizioni o alla qualità dei prodotti, la responsabilità ricade direttamente sull’azienda fornitrice.";
 
@@ -190,22 +199,34 @@ const COMMON_UI_DEFAULTS: Partial<UiTranslation> = {
 };
 
 /**
- * Fixed to strictly follow API key usage guidelines.
- * Always initializes GoogleGenAI with process.env.API_KEY.
+ * Helper to call the AI Proxy instead of direct Google SDK.
  */
-const getAIInstance = () => {
-    // Priority: process.env (bridged in index.tsx) > import.meta.env
-    const apiKey = 
-        (typeof process !== 'undefined' && (process.env.GEMINI_API_KEY || process.env.API_KEY)) ||
-        (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-        (import.meta as any).env?.GEMINI_API_KEY ||
-        (import.meta as any).env?.VITE_API_KEY || 
-        (import.meta as any).env?.API_KEY;
+const callAIProxy = async (prompt: string): Promise<string> => {
+    const proxyUrl = (import.meta as any).env?.VITE_PROXY_URL || (process.env as any).VITE_PROXY_URL;
+    const siteId = (import.meta as any).env?.VITE_SITE_ID || (process.env as any).VITE_SITE_ID;
 
-    if (!apiKey) {
-        throw new Error("API Key non trovata. Assicurati di aver impostato VITE_GEMINI_API_KEY nelle variabili d'ambiente di Vercel.");
+    if (!proxyUrl) {
+        throw new Error("Configurazione SaaS mancante");
     }
-    return new GoogleGenAI({ apiKey });
+
+    const response = await fetch(`${proxyUrl}/api/ai/generate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            prompt,
+            siteId,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Errore Proxy AI: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.text || "";
 };
 
 export const getLanguageConfig = (lang: string) => {
@@ -287,13 +308,158 @@ const callGeminiWithRetry = async (fn: () => Promise<any>, maxRetries = 3): Prom
 };
 
 export const generateLandingPage = async (product: ProductDetails, reviewCount: number): Promise<GeneratedContent> => {
-    const ai = getAIInstance();
     const targetLang = product.language || 'Italiano';
     const langConfig = getLanguageConfig(targetLang);
     
     const paragraphLengthPrompt = product.paragraphLength === 'medium' 
         ? "Each paragraph (feature description) must be at least 30 words long."
         : "Each paragraph (feature description) must be at least 50 words long.";
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            headline: { type: Type.STRING },
+            subheadline: { type: Type.STRING },
+            ctaText: { type: Type.STRING },
+            ctaSubtext: { type: Type.STRING },
+            announcements: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        text: { type: Type.STRING },
+                        icon: { type: Type.STRING }
+                    },
+                    required: ["text", "icon"]
+                }
+            },
+            featuresSectionTitle: { type: Type.STRING },
+            benefits: { type: Type.ARRAY, items: { type: Type.STRING } },
+            features: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        title: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        showCta: { type: Type.BOOLEAN }
+                    },
+                    required: ["title", "description"]
+                }
+            },
+            boxContent: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    items: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["title", "items"]
+            },
+            variants: {
+                type: Type.OBJECT,
+                properties: {
+                    enabled: { type: Type.BOOLEAN },
+                    title: { type: Type.STRING },
+                    options: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                label: { type: Type.STRING },
+                                price: { type: Type.STRING }
+                            },
+                            required: ["id", "label"]
+                        }
+                    }
+                },
+                required: ["enabled", "title", "options"]
+            },
+            bottomOffer: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    subtitle: { type: Type.STRING },
+                    ctaText: { type: Type.STRING },
+                    scarcityText: { type: Type.STRING },
+                    features: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                subtitle: { type: Type.STRING }
+                            },
+                            required: ["title", "subtitle"]
+                        }
+                    }
+                },
+                required: ["title", "subtitle", "ctaText", "scarcityText"]
+            },
+            uiTranslation: { 
+                type: Type.OBJECT,
+                properties: {
+                    reviews: { type: Type.STRING },
+                    offer: { type: Type.STRING },
+                    checkoutHeader: { type: Type.STRING },
+                    completeOrder: { type: Type.STRING },
+                    shippingInsurance: { type: Type.STRING },
+                    shippingInsuranceDescription: { type: Type.STRING },
+                    gadgetLabel: { type: Type.STRING },
+                    gadgetDescription: { type: Type.STRING },
+                    paymentMethod: { type: Type.STRING },
+                    cod: { type: Type.STRING },
+                    card: { type: Type.STRING },
+                    shippingInfo: { type: Type.STRING },
+                    secure: { type: Type.STRING },
+                    returns: { type: Type.STRING },
+                    original: { type: Type.STRING },
+                    express: { type: Type.STRING },
+                    warranty: { type: Type.STRING },
+                    certified: { type: Type.STRING },
+                    techDesign: { type: Type.STRING },
+                    orderReceived: { type: Type.STRING },
+                    orderReceivedMsg: { type: Type.STRING },
+                    discountLabel: { type: Type.STRING },
+                    privacyPolicy: { type: Type.STRING },
+                    termsConditions: { type: Type.STRING },
+                    cookiePolicy: { type: Type.STRING },
+                    rightsReserved: { type: Type.STRING },
+                    generatedPageNote: { type: Type.STRING },
+                    assistantMessage: { type: Type.STRING },
+                    nameLabel: { type: Type.STRING },
+                    phoneLabel: { type: Type.STRING },
+                    emailLabel: { type: Type.STRING },
+                    addressLabel: { type: Type.STRING },
+                    cityLabel: { type: Type.STRING },
+                    capLabel: { type: Type.STRING },
+                    provinceLabel: { type: Type.STRING },
+                    addressNumberLabel: { type: Type.STRING },
+                    legalDisclaimer: { type: Type.STRING },
+                    thankYouTitle: { type: Type.STRING },
+                    thankYouMsg: { type: Type.STRING },
+                    socialProofAction: { type: Type.STRING },
+                    socialProofFrom: { type: Type.STRING },
+                    socialProofBadgeName: { type: Type.STRING },
+                    socialProof: { type: Type.STRING },
+                    onlyLeft: { type: Type.STRING },
+                    summaryProduct: { type: Type.STRING },
+                    summaryShipping: { type: Type.STRING },
+                    summaryInsurance: { type: Type.STRING },
+                    summaryGadget: { type: Type.STRING },
+                    summaryTotal: { type: Type.STRING },
+                    localizedCities: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    localizedNames: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    timelineOrdered: { type: Type.STRING },
+                    timelineReady: { type: Type.STRING },
+                    timelineDelivered: { type: Type.STRING }
+                }
+            },
+            price: { type: Type.STRING },
+            originalPrice: { type: Type.STRING },
+        },
+        required: ["headline", "subheadline", "ctaText", "benefits", "features", "uiTranslation", "announcements", "boxContent", "bottomOffer"]
+    };
 
     const prompt = `
     Generate a high-converting landing page JSON for a product with the following details:
@@ -317,11 +483,11 @@ export const generateLandingPage = async (product: ProductDetails, reviewCount: 
     - IMPORTANT: Include a "boxContent" object with a title like "Cosa Trovi nella Confezione?" (translated) and an array of items (exactly what's in the box, e.g., "1x Prodotto", "Manuale d'istruzioni").
     - IMPORTANT: Include a "variants" object. If the product naturally has variants (colors, sizes, models), enable it and provide 2-3 options. If not, set enabled to false.
     - IMPORTANT: Include a "bottomOffer" section for a special price block at the end of the page.
-      - bottomOffer.title: Must be "${product.name} Oggi" (translated)
-      - bottomOffer.subtitle: A persuasive short text.
-      - bottomOffer.scarcityText: Must be "OFFERTA VALIDA SOLO PER OGGI" (translated)
-      - bottomOffer.ctaText: A long persuasive button text like "Acquista Ora e Rivoluziona i Tuoi Lavori con Sconto del 50%" (personalized for this specific product niche, translated).
-      - bottomOffer.features: MUST be an array of exactly 3 objects with "title" and "subtitle" (e.g., "Fast Shipping", "Risk-Free Trial", "12-Month Warranty") translated into ${targetLang}.
+    - bottomOffer.title: Must be "${product.name} Oggi" (translated)
+    - bottomOffer.subtitle: A persuasive short text.
+    - bottomOffer.scarcityText: Must be "OFFERTA VALIDA SOLO PER OGGI" (translated)
+    - bottomOffer.ctaText: A long persuasive button text like "Acquista Ora e Rivoluziona i Tuoi Lavori con Sconto del 50%" (personalized for this specific product niche, translated).
+    - bottomOffer.features: MUST be an array of exactly 3 objects with "title" and "subtitle" (e.g., "Fast Shipping", "Risk-Free Trial", "12-Month Warranty") translated into ${targetLang}.
     - IMPORTANT: In uiTranslation, include a "socialProof" field with the phrase "and {x} other people have purchased" translated into ${targetLang}. Use "{x}" as the placeholder for the number.
     - IMPORTANT: In uiTranslation, include a "onlyLeft" field with a scarcity phrase like "Solo {x} rimasti a magazzino" translated into ${targetLang}. Use "{x}" as the placeholder for the number.
     - IMPORTANT: In uiTranslation, include a "certified" field with the phrase "Acquisto verificato" translated into ${targetLang}.
@@ -330,162 +496,9 @@ export const generateLandingPage = async (product: ProductDetails, reviewCount: 
     - IMPORTANT: In uiTranslation, include an "assistantMessage" field translated into ${targetLang} (e.g., "Ciao! Compila il modulo, ci vorrà solo un minuto.").
     - IMPORTANT: In uiTranslation, include a "thankYouTitle" field translated into ${targetLang} (e.g., "Grazie per il tuo acquisto {name}!"). Use "{name}" as the placeholder.
     - IMPORTANT: In uiTranslation, include a "thankYouMsg" field translated into ${targetLang} (e.g., "Il tuo ordine è stato ricevuto. Un nostro consulente ti contatterà a breve al numero {phone}."). Use "{phone}" as the placeholder.
-    - Follow the GeneratedContent interface structure strictly.`;
+    - Return ONLY the JSON object following this schema: ${JSON.stringify(schema)}`;
 
-    const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    headline: { type: Type.STRING },
-                    subheadline: { type: Type.STRING },
-                    ctaText: { type: Type.STRING },
-                    ctaSubtext: { type: Type.STRING },
-                    announcements: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                text: { type: Type.STRING },
-                                icon: { type: Type.STRING }
-                            },
-                            required: ["text", "icon"]
-                        }
-                    },
-                    featuresSectionTitle: { type: Type.STRING },
-                    benefits: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    features: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                title: { type: Type.STRING },
-                                description: { type: Type.STRING },
-                                showCta: { type: Type.BOOLEAN }
-                            },
-                            required: ["title", "description"]
-                        }
-                    },
-                    boxContent: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            items: { type: Type.ARRAY, items: { type: Type.STRING } }
-                        },
-                        required: ["title", "items"]
-                    },
-                    variants: {
-                        type: Type.OBJECT,
-                        properties: {
-                            enabled: { type: Type.BOOLEAN },
-                            title: { type: Type.STRING },
-                            options: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        id: { type: Type.STRING },
-                                        label: { type: Type.STRING },
-                                        price: { type: Type.STRING }
-                                    },
-                                    required: ["id", "label"]
-                                }
-                            }
-                        },
-                        required: ["enabled", "title", "options"]
-                    },
-                    bottomOffer: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            subtitle: { type: Type.STRING },
-                            ctaText: { type: Type.STRING },
-                            scarcityText: { type: Type.STRING },
-                            features: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        title: { type: Type.STRING },
-                                        subtitle: { type: Type.STRING }
-                                    },
-                                    required: ["title", "subtitle"]
-                                }
-                            }
-                        },
-                        required: ["title", "subtitle", "ctaText", "scarcityText"]
-                    },
-                    uiTranslation: { 
-                        type: Type.OBJECT,
-                        properties: {
-                            reviews: { type: Type.STRING },
-                            offer: { type: Type.STRING },
-                            checkoutHeader: { type: Type.STRING },
-                            completeOrder: { type: Type.STRING },
-                            shippingInsurance: { type: Type.STRING },
-                            shippingInsuranceDescription: { type: Type.STRING },
-                            gadgetLabel: { type: Type.STRING },
-                            gadgetDescription: { type: Type.STRING },
-                            paymentMethod: { type: Type.STRING },
-                            cod: { type: Type.STRING },
-                            card: { type: Type.STRING },
-                            shippingInfo: { type: Type.STRING },
-                            secure: { type: Type.STRING },
-                            returns: { type: Type.STRING },
-                            original: { type: Type.STRING },
-                            express: { type: Type.STRING },
-                            warranty: { type: Type.STRING },
-                            certified: { type: Type.STRING },
-                            techDesign: { type: Type.STRING },
-                            orderReceived: { type: Type.STRING },
-                            orderReceivedMsg: { type: Type.STRING },
-                            discountLabel: { type: Type.STRING },
-                            privacyPolicy: { type: Type.STRING },
-                            termsConditions: { type: Type.STRING },
-                            cookiePolicy: { type: Type.STRING },
-                            rightsReserved: { type: Type.STRING },
-                            generatedPageNote: { type: Type.STRING },
-                            assistantMessage: { type: Type.STRING },
-                            nameLabel: { type: Type.STRING },
-                            phoneLabel: { type: Type.STRING },
-                            emailLabel: { type: Type.STRING },
-                            addressLabel: { type: Type.STRING },
-                            cityLabel: { type: Type.STRING },
-                            capLabel: { type: Type.STRING },
-                            provinceLabel: { type: Type.STRING },
-                            addressNumberLabel: { type: Type.STRING },
-                            legalDisclaimer: { type: Type.STRING },
-                            thankYouTitle: { type: Type.STRING },
-                            thankYouMsg: { type: Type.STRING },
-                            socialProofAction: { type: Type.STRING },
-                            socialProofFrom: { type: Type.STRING },
-                            socialProofBadgeName: { type: Type.STRING },
-                            socialProof: { type: Type.STRING },
-                            onlyLeft: { type: Type.STRING },
-                            summaryProduct: { type: Type.STRING },
-                            summaryShipping: { type: Type.STRING },
-                            summaryInsurance: { type: Type.STRING },
-                            summaryGadget: { type: Type.STRING },
-                            summaryTotal: { type: Type.STRING },
-                            localizedCities: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            localizedNames: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            timelineOrdered: { type: Type.STRING },
-                            timelineReady: { type: Type.STRING },
-                            timelineDelivered: { type: Type.STRING }
-                        }
-                    },
-                    price: { type: Type.STRING },
-                    originalPrice: { type: Type.STRING },
-                },
-                required: ["headline", "subheadline", "ctaText", "benefits", "features", "uiTranslation", "announcements", "boxContent", "bottomOffer"]
-            }
-        }
-    }));
-
-    const responseText = response.text || '{}';
+    const responseText = await callGeminiWithRetry(() => callAIProxy(prompt));
     const baseContent = JSON.parse(cleanJson(responseText)) as any;
     
     const randomSocialProofCount = Math.floor(Math.random() * (1500 - 401) + 401);
@@ -555,7 +568,6 @@ export const generateLandingPage = async (product: ProductDetails, reviewCount: 
 };
 
 export const translateLandingPage = async (content: GeneratedContent, targetLang: string): Promise<GeneratedContent> => {
-    const ai = getAIInstance();
     const langConfig = getLanguageConfig(targetLang);
 
     // Helper to translate a specific chunk of text or object
@@ -578,17 +590,11 @@ export const translateLandingPage = async (content: GeneratedContent, targetLang
         
         JSON to translate:
         ${JSON.stringify(chunk)}
-        `;
+        
+        Return ONLY the translated JSON object.`;
 
-        const response = await callGeminiWithRetry(() => ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json"
-            }
-        }));
-
-        return JSON.parse(cleanJson(response.text || '{}'));
+        const responseText = await callGeminiWithRetry(() => callAIProxy(prompt));
+        return JSON.parse(cleanJson(responseText || '{}'));
     };
 
     // 1. Translate Hero & Basic Info
@@ -651,12 +657,8 @@ export const translateLandingPage = async (content: GeneratedContent, targetLang
 
     // 6. Localized Cities and Names (Special generation for the target country)
     const localizationPrompt = `Generate 10 common real cities and 10 common real first names for ${langConfig.country}. Return as JSON: { "cities": [], "names": [] }`;
-    const locResponse = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: localizationPrompt,
-        config: { responseMimeType: "application/json" }
-    }));
-    const locData = JSON.parse(cleanJson(locResponse.text || '{}'));
+    const locResponseText = await callGeminiWithRetry(() => callAIProxy(localizationPrompt));
+    const locData = JSON.parse(cleanJson(locResponseText || '{}'));
 
     // Reconstruct the final content
     return {
@@ -721,7 +723,6 @@ export const translateLandingPage = async (content: GeneratedContent, targetLang
  * The first 100 are detailed, the rest can be concise (without long text).
  */
 export const generateReviews = async (product: ProductDetails, language: string, count: number): Promise<Testimonial[]> => {
-    const ai = getAIInstance();
     const today = new Date();
     const dateStr = today.toLocaleDateString('it-IT');
     const referenceImages = (product.images || []).filter(img => img.startsWith('data:image'));
@@ -737,8 +738,7 @@ export const generateReviews = async (product: ProductDetails, language: string,
         const remaining = target - currentStart;
         const batchToGen = Math.min(remaining, batchSize);
         
-        const contentsParts: any[] = [];
-        const promptText = `
+        let promptText = `
         TASK: Generate EXACTLY ${batchToGen} unique and realistic customer reviews for the product "${product.name}" in ${language}.
 
         CONTEXT:
@@ -751,46 +751,29 @@ export const generateReviews = async (product: ProductDetails, language: string,
         - ${isFiller ? "MANDATORY: These are filler reviews. Keep the 'text' field EMPTY or extremely short (max 5 words)." : "Focus on different product-specific aspects (speed, quality, ease of use)."}
         - MANDATORY: The verification status is ALWAYS "Acquisto verificato" (translate this to ${language}).
         - Dates should be formatted as "DD MMM YYYY".
-        - Each review needs name, title, rating (4-5 stars), text, and date.`;
-
-        contentsParts.push({ text: promptText });
+        - Each review needs name, title, rating (4-5 stars), text, and date.
+        
+        Schema:
+        [
+            {
+                "name": "string",
+                "title": "string",
+                "text": "string",
+                "role": "string",
+                "rating": number,
+                "date": "string",
+                "images": ["string"]
+            }
+        ]`;
 
         if (referenceImages.length > 0) {
             const refImg = referenceImages[Math.floor(Math.random() * referenceImages.length)];
-            const base64Data = refImg.split(',')[1];
-            const mimeType = refImg.split(';')[0].split(':')[1];
-            contentsParts.push({
-                inlineData: { data: base64Data, mimeType: mimeType }
-            });
+            promptText += `\n\nReference Image Data (Base64): ${refImg.substring(0, 100)}... [truncated]`;
         }
 
         try {
-            const response = await callGeminiWithRetry(() => ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: { parts: contentsParts },
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                name: { type: Type.STRING },
-                                title: { type: Type.STRING },
-                                text: { type: Type.STRING },
-                                role: { type: Type.STRING },
-                                rating: { type: Type.NUMBER },
-                                date: { type: Type.STRING },
-                                images: { type: Type.ARRAY, items: { type: Type.STRING } }
-                            },
-                            required: ["name", "text", "rating", "date"]
-                        }
-                    }
-                }
-            }));
-
-            const responseText = response.text || '[]';
-            const parsed = JSON.parse(cleanJson(responseText));
+            const responseText = await callGeminiWithRetry(() => callAIProxy(promptText));
+            const parsed = JSON.parse(cleanJson(responseText || '[]'));
             if (Array.isArray(parsed)) {
                 allReviews.push(...parsed);
             }
@@ -805,7 +788,6 @@ export const generateReviews = async (product: ProductDetails, language: string,
 };
 
 export const generateActionImages = async (product: ProductDetails, styles: AIImageStyle[], count: number, customPrompt?: string): Promise<string[]> => {
-    const ai = getAIInstance();
     const referenceImages = (product.images || []).filter(img => img.startsWith('data:image'));
 
     // Eseguiamo le generazioni in sequenza per evitare errori 429 (Too Many Requests)
@@ -820,7 +802,7 @@ export const generateActionImages = async (product: ProductDetails, styles: AIIm
             'informative': 'Clear commercial product shot, perfectly centered, showing the full object with no distractions.'
         };
 
-        const promptText = `TASK: Generate a professional ultra-high quality ${style} photograph for the product "${product.name}".
+        let promptText = `TASK: Generate a professional ultra-high quality ${style} photograph for the product "${product.name}".
         
         Product Context: "${product.description}"
         ${customPrompt ? `SPECIFIC USER REQUEST: "${customPrompt}"` : ''}
@@ -830,35 +812,20 @@ export const generateActionImages = async (product: ProductDetails, styles: AIIm
         
         CRITICAL INSTRUCTIONS:
         1. The generated image MUST be based heavily on the provided reference image. Maintain the exact same product design, shape, and core features. Do not invent a completely different product.
-        2. If you include any text, labels, or writing in the generated image, it MUST be in the following language: ${product.language || 'Italiano'}.`;
-
-        const contentsParts: any[] = [{ text: promptText }];
+        2. If you include any text, labels, or writing in the generated image, it MUST be in the following language: ${product.language || 'Italiano'}.
         
+        Return the image as a base64 encoded string within a JSON object: { "image": "base64_string" }`;
+
         if (referenceImages.length > 0) {
             const refImg = referenceImages[i % referenceImages.length];
-            const base64Data = refImg.split(',')[1];
-            const mimeType = refImg.split(';')[0].split(':')[1];
-            
-            contentsParts.push({
-                inlineData: {
-                    data: base64Data,
-                    mimeType: mimeType
-                }
-            });
+            promptText += `\n\nReference Image Data (Base64): ${refImg.substring(0, 100)}... [truncated]`;
         }
 
         try {
-            const response = await callGeminiWithRetry(() => ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: contentsParts },
-                config: {
-                    imageConfig: { aspectRatio: "1:1" }
-                }
-            }));
-
-            const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-            if (part?.inlineData?.data) {
-                results.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
+            const responseText = await callGeminiWithRetry(() => callAIProxy(promptText));
+            const parsed = JSON.parse(cleanJson(responseText || '{}'));
+            if (parsed.image) {
+                results.push(parsed.image.startsWith('data:') ? parsed.image : `data:image/png;base64,${parsed.image}`);
             } else {
                 results.push(null);
             }
@@ -877,8 +844,6 @@ export const generateActionImages = async (product: ProductDetails, styles: AIIm
 };
 
 export const rewriteLandingPage = async (content: GeneratedContent, tone: PageTone): Promise<GeneratedContent> => {
-    const ai = getAIInstance();
-    
     const textFields = {
         headline: content.headline,
         subheadline: content.subheadline,
@@ -902,64 +867,12 @@ export const rewriteLandingPage = async (content: GeneratedContent, tone: PageTo
     const prompt = `Rewrite the following landing page content to have a ${tone} tone in ${targetLang}: ${JSON.stringify(textFields)}
     
     IMPORTANT: If "headline" contains "{name}", preserve the "{name}" placeholder in the rewritten text.
-    IMPORTANT: If "subheadline" contains "{phone}", preserve the "{phone}" placeholder in the rewritten text.`;
+    IMPORTANT: If "subheadline" contains "{phone}", preserve the "{phone}" placeholder in the rewritten text.
+    
+    Return ONLY the rewritten JSON object.`;
 
-    const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    headline: { type: Type.STRING },
-                    subheadline: { type: Type.STRING },
-                    ctaText: { type: Type.STRING },
-                    ctaSubtext: { type: Type.STRING },
-                    benefits: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    features: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                title: { type: Type.STRING },
-                                description: { type: Type.STRING }
-                            }
-                        }
-                    },
-                    boxContent: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            items: { type: Type.ARRAY, items: { type: Type.STRING } }
-                        }
-                    },
-                    bottomOffer: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            subtitle: { type: Type.STRING },
-                            ctaText: { type: Type.STRING },
-                            scarcityText: { type: Type.STRING },
-                            features: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        title: { type: Type.STRING },
-                                        subtitle: { type: Type.STRING }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    announcements: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-            }
-        }
-    }));
-
-    const translated = JSON.parse(cleanJson(response.text || '{}'));
+    const responseText = await callGeminiWithRetry(() => callAIProxy(prompt));
+    const translated = JSON.parse(cleanJson(responseText || '{}'));
 
     return {
         ...content,

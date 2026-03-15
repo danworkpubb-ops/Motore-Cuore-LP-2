@@ -7,14 +7,8 @@
 export const CONFIG = {
     // Vite standard: variables must start with VITE_ to be exposed to the client
     // We use import.meta.env which is the official Vite way.
-    GEMINI_API_KEY: 
-        (import.meta as any).env?.VITE_API_KEY || 
-        (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-        (import.meta as any).env?.GEMINI_API_KEY ||
-        // Fallback to process.env for environments that inject it (like our preview)
-        (typeof process !== 'undefined' ? process.env?.VITE_API_KEY : "") ||
-        (typeof process !== 'undefined' ? process.env?.API_KEY : "") ||
-        "",
+    PROXY_URL: (import.meta as any).env?.VITE_PROXY_URL || "",
+    SITE_ID: (import.meta as any).env?.VITE_SITE_ID || "",
     
     SUPABASE_URL: 
         (import.meta as any).env?.VITE_SUPABASE_URL || 
@@ -27,18 +21,11 @@ export const CONFIG = {
 
 // Diagnostic helper to see exactly what's happening in the browser console
 export const checkConfig = () => {
-    const rawKey = CONFIG.GEMINI_API_KEY;
-    const isPresent = !!rawKey && rawKey !== "undefined" && rawKey !== "null" && rawKey.trim() !== "";
-    
     const status = {
-        gemini: isPresent ? `Caricata (${rawKey.substring(0,4)}...${rawKey.substring(rawKey.length - 4)})` : "MANCANTE ❌",
+        aiProxy: CONFIG.PROXY_URL ? "Presente ✅" : "MANCANTE ❌",
+        siteId: CONFIG.SITE_ID ? "Presente ✅" : "MANCANTE ❌",
         supabaseUrl: CONFIG.SUPABASE_URL ? "Presente ✅" : "MANCANTE ❌",
         supabaseKey: CONFIG.SUPABASE_ANON_KEY ? "Presente ✅" : "MANCANTE ❌",
-        debug_info: {
-            key_length: rawKey?.length || 0,
-            is_string_undefined: rawKey === "undefined",
-            is_string_null: rawKey === "null"
-        }
     };
     console.log("[Config Diagnostic]", status);
     return status;

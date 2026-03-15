@@ -12,21 +12,16 @@ if (typeof window !== 'undefined') {
   (window as any).process.env = (window as any).process.env || {};
 
   try {
-    // Recupera la chiave dalle variabili di ambiente di Vite
+    // Recupera la configurazione del Proxy AI
     const env = (import.meta as any).env;
-    const apiKey = env?.VITE_GEMINI_API_KEY || env?.GEMINI_API_KEY || env?.VITE_API_KEY || env?.API_KEY;
+    const proxyUrl = env?.VITE_PROXY_URL;
+    const siteId = env?.VITE_SITE_ID;
 
-    if (apiKey) {
-      // Imposta la chiave dove l'SDK se l'aspetta
-      (window as any).process.env.API_KEY = apiKey;
-      (window as any).process.env.GEMINI_API_KEY = apiKey;
-      console.log("Configurazione API: Chiave rilevata e collegata correttamente.");
+    if (proxyUrl && siteId) {
+      console.log("Configurazione AI Proxy: Rilevata e collegata correttamente.");
     } else {
-      // Fallback: controlla se è già presente in process.env (iniettata da altri script)
-      const existingKey = (window as any).process.env.API_KEY || (window as any).process.env.GEMINI_API_KEY;
-      if (!existingKey) {
-        console.warn("Attenzione: VITE_GEMINI_API_KEY non trovata. Verifica le impostazioni su Vercel.");
-      }
+      if (!proxyUrl) console.warn("Attenzione: VITE_PROXY_URL non trovata.");
+      if (!siteId) console.warn("Attenzione: VITE_SITE_ID non trovata.");
     }
   } catch (err) {
     console.error("Errore nel bridge ambientale:", err);
