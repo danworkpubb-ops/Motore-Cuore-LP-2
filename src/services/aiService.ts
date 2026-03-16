@@ -1,13 +1,9 @@
 // src/services/aiService.ts
 
 export const generateAIContent = async (userPrompt: string) => {
-  // Queste variabili vengono iniettate automaticamente durante il deploy dalla piattaforma
-  const platformUrl = (import.meta as any).env.VITE_PROXY_URL || 'https://genera-lp.vercel.app';
-  const ownerId = (import.meta as any).env.VITE_OWNER_ID;
-
-  if (!platformUrl || !ownerId) {
-    throw new Error("Configurazione piattaforma mancante (URL o Owner ID).");
-  }
+  // 1. Recupera i dati iniettati dalla piattaforma (con fallback automatico)
+  const proxyUrl = (import.meta as any).env.VITE_PROXY_URL || 'https://genera-lp.vercel.app';
+  const userId = (import.meta as any).env.VITE_OWNER_ID;
 
   const systemPrompt = `
 Agisci come un esperto Senior Web Designer e Copywriter specializzato in conversioni.
@@ -30,22 +26,22 @@ PROMPT DELL'UTENTE:
 ${userPrompt}
 `;
 
-  const response = await fetch(`${platformUrl}/api/ai/generate-landing`, {
+  // 2. Chiama la piattaforma (il ponte)
+  const response = await fetch(`${proxyUrl.replace(/\/$/, '')}/api/ai/generate-landing`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       prompt: systemPrompt,
-      userId: ownerId // Questo permette alla piattaforma di scalare i crediti all'utente corretto
+      userId: userId // Fondamentale per il controllo dei limiti
     }),
   });
 
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "Errore durante la generazione AI");
+    // Se la piattaforma risponde con errore (es. limiti raggiunti)
+    throw new Error(data.error || "Errore nella generazione");
   }
 
-  return data.content; // Restituisce il codice HTML/Tailwind generato
+  return data.content; // Qui c'è l'HTML generato da Gemini
 };

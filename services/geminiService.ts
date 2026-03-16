@@ -202,31 +202,28 @@ const COMMON_UI_DEFAULTS: Partial<UiTranslation> = {
  * Helper to call the AI Proxy instead of direct Google SDK.
  */
 const callAIProxy = async (prompt: string): Promise<string> => {
+    // Hardcoded default to ensure it works automatically on Vercel
     const proxyUrl = (import.meta as any).env?.VITE_PROXY_URL || (process.env as any).VITE_PROXY_URL || 'https://genera-lp.vercel.app';
-    const siteId = (import.meta as any).env?.VITE_SITE_ID || (process.env as any).VITE_SITE_ID;
+    const userId = (import.meta as any).env?.VITE_OWNER_ID || (process.env as any).VITE_OWNER_ID;
 
-    if (!proxyUrl) {
-        throw new Error("Configurazione SaaS mancante");
-    }
-
-    const response = await fetch(`${proxyUrl}/api/ai/generate`, {
+    const response = await fetch(`${proxyUrl.replace(/\/$/, '')}/api/ai/generate-landing`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
             prompt,
-            siteId,
+            userId,
         }),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Errore Proxy AI: ${response.status}`);
+        throw new Error(data.error || data.message || `Errore nella generazione: ${response.status}`);
     }
 
-    const data = await response.json();
-    return data.text || "";
+    return data.content || data.text || "";
 };
 
 export const getLanguageConfig = (lang: string) => {

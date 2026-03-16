@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured, base64ToBlob, uploadImage, compressImage } from './services/supabaseClient';
 import { generateLandingPage, generateReviews, generateActionImages, translateLandingPage, rewriteLandingPage, getLanguageConfig, TIKTOK_SLIDER_HTML } from './services/geminiService';
 import { generateAIContent } from './src/services/aiService';
+import { SITE_ID } from './src/config';
 import LandingPage, { ThankYouPage } from './components/LandingPage';
 import { ProductDetails, GeneratedContent, PageTone, UserSession, LandingPageRow, TemplateId, FormFieldConfig, TypographyConfig, UiTranslation, SiteConfig, Testimonial, OnlineUser, AIImageStyle, AnnouncementItem } from './types';
 import { Loader2, Sparkles, Star, ChevronLeft, ChevronRight, Save, ShoppingBag, ArrowRight, Trash2, Pencil, Smartphone, Tablet, Monitor, Plus, Images, X, RefreshCcw, ArrowLeft, Settings, Link as LinkIcon, Type, Truck, Flame, Zap, Globe, Banknote, Palette, Users, Copy, Target, Code, Mail, Lock, Package, ShieldCheck, FileText as FileTextIcon, Gift, HardDrive, Terminal, CopyCheck, AlertCircle, Database, Shield, Paintbrush, ChevronDown, Eye, MessageSquare, Quote, Info, CheckCircle, User, Activity, Lightbulb, Languages, CopyPlus, Rocket, ZapIcon, Wand2, MonitorOff, Layout, ListOrdered, Hash, Type as TypeIcon, Bell, Clock, LayoutDashboard, ShoppingCart, Video, Play, MonitorPlay, Download } from 'lucide-react';
@@ -57,9 +58,6 @@ ttq.track('CompletePayment', {
 const TEMPLATES: { id: TemplateId; name: string; desc: string; color: string }[] = [
     { id: 'gadget-cod', name: 'Gadget COD', desc: 'Stile "Offerte-On". Perfect per prodotti fisici e pagamento alla consegna.', color: 'bg-blue-600 text-white border-blue-800' },
 ];
-
-const SITE_ID = (import.meta as any).env.VITE_SITE_ID;
-const PROXY_URL = (import.meta as any).env.VITE_PROXY_URL;
 
 const BUTTON_GRADIENTS = [
     { label: 'Orange Sunset', class: 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-orange-400' },

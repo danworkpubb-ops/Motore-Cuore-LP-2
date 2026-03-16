@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
         'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || ""),
         'process.env.VITE_ADMIN_EMAIL': JSON.stringify(env.VITE_ADMIN_EMAIL || ""),
         'process.env.VITE_ADMIN_PASSWORD': JSON.stringify(env.VITE_ADMIN_PASSWORD || ""),
-        'process.env.VITE_PROXY_URL': JSON.stringify(env.VITE_PROXY_URL || ""),
+        'process.env.VITE_PROXY_URL': JSON.stringify(env.VITE_PROXY_URL || "https://genera-lp.vercel.app"),
         'process.env.VITE_SITE_ID': JSON.stringify(env.VITE_SITE_ID || ""),
         'process.env.VITE_OWNER_ID': JSON.stringify(env.VITE_OWNER_ID || "")
       },
